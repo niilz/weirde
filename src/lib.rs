@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 const CONTINUE_MASK: u8 = 0b1000_0000;
+const DROP_CONINUE_BIT: u8 = 0b0111_1111;
 const WIRE_TYPE_MASK: u8 = 0b0000_0111;
 const FIELD_NUM_MASK: u8 = 0b0111;
 
@@ -21,27 +22,57 @@ enum WireType {
 }
 
 fn deserialize(bin: &[u8]) -> HashMap<u8, WireType> {
-    let bin: Vec<_> = bin.iter().skip_while(|b| *b == &0u8).collect();
+    let bin: Vec<u8> = bin.iter().skip_while(|b| **b == 0u8).map(|n| *n).collect();
     let key = &bin[0];
-    let wire_type = map_to_wire_type(**key, 42);
+    let (field, wire_type) = map_to_wire_type(*key, &bin[1..]);
+    eprintln!("field: {field}, wire_type: {wire_type:?})");
     let mut msg = HashMap::new();
-    let wire_s = WireType::Len("Foo".to_string());
-    msg.insert(1u8, wire_s);
+    msg.insert(field, wire_type);
     msg
 }
 
-fn map_to_wire_type(key: u8, value: u64) -> WireType {
+fn map_to_wire_type(key: u8, rest: &[u8]) -> (u8, WireType) {
     let is_continue = key & CONTINUE_MASK;
-    eprintln!("is_continue: {is_continue}");
+    //eprintln!("is_continue: {is_continue}");
     let wire_type = key & WIRE_TYPE_MASK;
-    eprintln!("wire_type: {wire_type}");
+    //eprintln!("wire_type: {wire_type}");
     let field_num = key >> 3 & FIELD_NUM_MASK;
-    eprintln!("field_num: {field_num}");
-    match field_num {
-        0 => WireType::Varint(value),
+    //eprintln!("field_num: {field_num}");
+    let wire_type = match wire_type {
+        0 => {
+            let value = read_num(&rest);
+            WireType::Varint(value)
+        }
         2 => WireType::Len("TODO".to_string()),
         _ => panic!("Unsupported Wire-Type"),
+    };
+    (field_num, wire_type)
+}
+
+fn read_num(rest: &[u8]) -> u64 {
+    let mut value = Vec::new();
+    //eprintln!("rest-start: {rest:?}");
+    for num in rest {
+        let is_continue = num & CONTINUE_MASK;
+        //eprintln!("is_continue: {is_continue}");
+        //eprintln!("raw-num: {num}");
+        let num_no_continue_bit = num & DROP_CONINUE_BIT;
+        let num = format!("{num_no_continue_bit:07b}");
+        //eprintln!("num-bin: {num}");
+        value.push(num);
+        if !is_continue == CONTINUE_MASK {
+            break;
+        }
     }
+    //eprintln!("value-vec: {value:?}");
+    let num_total_bin = value
+        .iter()
+        .map(|s| s.as_str())
+        .rev()
+        .collect::<Vec<_>>()
+        .join("");
+    //eprintln!("total-bin: {concat}");
+    u64::from_str_radix(&num_total_bin, 2).expect("Could not convert to hex")
 }
 
 #[cfg(test)]
