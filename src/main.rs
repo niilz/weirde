@@ -1,5 +1,5 @@
-use weirde::call_lib;
+use weirde::*;
 
 fn main() {
-    call_lib();
+    println!("main got called");
 }
