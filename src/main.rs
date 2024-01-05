@@ -1,3 +1,5 @@
+use weirde::call_lib;
+
 fn main() {
-    println!("Hello, world!");
+    call_lib();
 }
