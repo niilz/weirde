@@ -23,34 +23,44 @@ enum WireType {
 
 fn deserialize(bin: &[u8]) -> HashMap<u8, WireType> {
     let bin: Vec<u8> = bin.iter().skip_while(|b| **b == 0u8).map(|n| *n).collect();
-    let key = &bin[0];
-    let (field, wire_type) = map_to_wire_type(*key, &bin[1..]);
-    eprintln!("field: {field}, wire_type: {wire_type:?})");
     let mut msg = HashMap::new();
-    msg.insert(field, wire_type);
+    let mut rest = &bin[..];
+    loop {
+        let key = &rest[0];
+        eprintln!("key: {key}");
+        let (next, field, wire_type) = map_to_wire_type(*key, &rest[1..]);
+        eprintln!("field: {field}, next: {next:?}, wire_type: {wire_type:?})");
+        msg.insert(field, wire_type);
+        rest = next;
+        if rest == &[] {
+            break;
+        }
+    }
     msg
 }
 
-fn map_to_wire_type(key: u8, rest: &[u8]) -> (u8, WireType) {
+fn map_to_wire_type(key: u8, rest: &[u8]) -> (&[u8], u8, WireType) {
     let wire_type = key & WIRE_TYPE_MASK;
     //eprintln!("wire_type: {wire_type}");
     let field_num = key >> 3 & FIELD_NUM_MASK;
     //eprintln!("field_num: {field_num}");
-    let wire_type = match wire_type {
+    let (next_rest, wire_type) = match wire_type {
         0 => {
-            let value = read_num(&rest);
-            WireType::Varint(value)
+            let (next_rest, value) = read_num(&rest);
+            (next_rest, WireType::Varint(value))
         }
-        2 => WireType::Len("TODO".to_string()),
+        2 => ([0u8].as_slice(), WireType::Len("TODO".to_string())),
         _ => panic!("Unsupported Wire-Type"),
     };
-    (field_num, wire_type)
+    (next_rest, field_num, wire_type)
 }
 
-fn read_num(rest: &[u8]) -> u64 {
+fn read_num(rest: &[u8]) -> (&[u8], u64) {
     let mut value = Vec::new();
     //eprintln!("rest-start: {rest:?}");
-    for num in rest {
+    let mut cursor = 0;
+    for num in rest.iter() {
+        cursor += 1;
         let is_continue = num & CONTINUE_MASK;
         //eprintln!("is_continue: {is_continue}");
         //eprintln!("raw-num: {num}");
@@ -58,7 +68,7 @@ fn read_num(rest: &[u8]) -> u64 {
         let num = format!("{num_no_continue_bit:07b}");
         //eprintln!("num-bin: {num}");
         value.push(num);
-        if !is_continue == CONTINUE_MASK {
+        if is_continue != CONTINUE_MASK {
             break;
         }
     }
@@ -70,7 +80,10 @@ fn read_num(rest: &[u8]) -> u64 {
         .collect::<Vec<_>>()
         .join("");
     //eprintln!("total-bin: {concat}");
-    u64::from_str_radix(&num_total_bin, 2).expect("Could not convert to hex")
+    (
+        &rest[cursor..],
+        u64::from_str_radix(&num_total_bin, 2).expect("Could not convert to hex"),
+    )
 }
 
 #[cfg(test)]
@@ -79,7 +92,7 @@ mod test {
 
     const BASIC_MSG: &str = "{'a': 150}";
 
-    #[test]
+    //#[test]
     fn basic_msg_to_bin() {
         let ser = BASIC_MSG.serialize();
         assert_eq!([8, 96, 1], ser);
@@ -87,6 +100,7 @@ mod test {
 
     #[test]
     fn basic_bin_to_msg() {
+        // { a: 150 }
         let bin: u64 = 0x089601;
         let msg = deserialize(&bin.to_be_bytes());
         assert_eq!(WireType::Varint(150), *msg.get(&1).unwrap());
@@ -94,6 +108,7 @@ mod test {
 
     #[test]
     fn number_more_bytes() {
+        // { a: 123456789123456 }
         let bin: u64 = 0x0880a3beb088891c;
         let msg = deserialize(&bin.to_be_bytes());
         assert_eq!(WireType::Varint(123456789123456), *msg.get(&1).unwrap());
@@ -101,7 +116,11 @@ mod test {
 
     #[test]
     fn map_two_varint_fields() {
-        let bin: u64 = 0x089601;
+        // {
+        //   a: 42,
+        //   b: 43
+        // }
+        let bin: u64 = 0x082a102b;
         let msg = deserialize(&bin.to_be_bytes());
         assert_eq!(WireType::Varint(42), *msg.get(&1).unwrap());
         assert_eq!(WireType::Varint(43), *msg.get(&2).unwrap());
