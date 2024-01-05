@@ -32,8 +32,6 @@ fn deserialize(bin: &[u8]) -> HashMap<u8, WireType> {
 }
 
 fn map_to_wire_type(key: u8, rest: &[u8]) -> (u8, WireType) {
-    let is_continue = key & CONTINUE_MASK;
-    //eprintln!("is_continue: {is_continue}");
     let wire_type = key & WIRE_TYPE_MASK;
     //eprintln!("wire_type: {wire_type}");
     let field_num = key >> 3 & FIELD_NUM_MASK;
@@ -91,6 +89,21 @@ mod test {
     fn basic_bin_to_msg() {
         let bin: u64 = 0x089601;
         let msg = deserialize(&bin.to_be_bytes());
-        assert_eq!(WireType::Varint(150), *msg.get(&1).unwrap())
+        assert_eq!(WireType::Varint(150), *msg.get(&1).unwrap());
+    }
+
+    #[test]
+    fn number_more_bytes() {
+        let bin: u64 = 0x0880a3beb088891c;
+        let msg = deserialize(&bin.to_be_bytes());
+        assert_eq!(WireType::Varint(123456789123456), *msg.get(&1).unwrap());
+    }
+
+    #[test]
+    fn map_two_varint_fields() {
+        let bin: u64 = 0x089601;
+        let msg = deserialize(&bin.to_be_bytes());
+        assert_eq!(WireType::Varint(42), *msg.get(&1).unwrap());
+        assert_eq!(WireType::Varint(43), *msg.get(&2).unwrap());
     }
 }
