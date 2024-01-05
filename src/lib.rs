@@ -49,7 +49,12 @@ fn map_to_wire_type(key: u8, rest: &[u8]) -> (&[u8], u8, WireType) {
             let (next_rest, value) = read_num(&rest);
             (next_rest, WireType::Varint(value))
         }
-        2 => ([0u8].as_slice(), WireType::Len("TODO".to_string())),
+        2 => {
+            let len = *&rest[0] as usize;
+            let value = &rest[1..len + 1];
+            let s = String::from_utf8(value.to_vec()).expect("no valid utf-8");
+            (&rest[len + 1..], WireType::Len(s))
+        }
         _ => panic!("Unsupported Wire-Type"),
     };
     (next_rest, field_num, wire_type)
@@ -124,5 +129,13 @@ mod test {
         let msg = deserialize(&bin.to_be_bytes());
         assert_eq!(WireType::Varint(42), *msg.get(&1).unwrap());
         assert_eq!(WireType::Varint(43), *msg.get(&2).unwrap());
+    }
+
+    #[test]
+    fn single_len_field() {
+        // { a: "Foo" }
+        let bin: u64 = 0x0a03466f6f;
+        let msg = deserialize(&bin.to_be_bytes());
+        assert_eq!(WireType::Len("Foo".to_string()), *msg.get(&1).unwrap());
     }
 }
