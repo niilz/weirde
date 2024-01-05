@@ -13,12 +13,12 @@ impl Proto for &str {
 #[derive(Debug, Hash, PartialEq, Eq)]
 enum WireType {
     Varint(u64),
-    String(String),
+    Len(String),
 }
 
 fn deserialize(bin: u64) -> HashMap<u8, WireType> {
     let mut msg = HashMap::new();
-    let wire_s = WireType::String("Foo".to_string());
+    let wire_s = WireType::Len("Foo".to_string());
     msg.insert(1u8, wire_s);
     msg
 }
