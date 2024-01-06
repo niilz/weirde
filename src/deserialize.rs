@@ -1,12 +1,8 @@
 use std::collections::HashMap;
 
-use crate::{CONTINUE_MASK, DROP_CONINUE_BIT, FIELD_NUM_MASK, U64_MAX_LEN, WIRE_TYPE_MASK};
-
-#[derive(Debug, Hash, PartialEq, Eq)]
-enum WireType {
-    Varint(u64),
-    Len(String),
-}
+use crate::{
+    WireType, CONTINUE_MASK, DROP_CONINUE_BIT, FIELD_NUM_MASK, U64_MAX_LEN, WIRE_TYPE_MASK,
+};
 
 fn deserialize(hex: &str) -> HashMap<u8, WireType> {
     let hex_values = hex

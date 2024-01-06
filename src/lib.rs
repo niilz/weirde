@@ -8,3 +8,9 @@ const U64_MAX_LEN: usize = 16;
 
 pub mod deserialize;
 pub mod serialize;
+
+#[derive(Debug, Hash, PartialEq, Eq)]
+pub enum WireType {
+    Varint(u64),
+    Len(String),
+}
