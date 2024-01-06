@@ -138,4 +138,38 @@ mod test {
         let msg = deserialize(&bin.to_be_bytes());
         assert_eq!(WireType::Len("Foo".to_string()), *msg.get(&1).unwrap());
     }
+
+    #[test]
+    #[should_panic]
+    fn fails_for_unknown_type() {
+        // { a: 150 } (float)
+        let bin: u64 = 0x0d00001643;
+        deserialize(&bin.to_be_bytes());
+    }
+
+    #[test]
+    fn mixed_fields() {
+        // {
+        //   a: "42",
+        //   b: "Foo",
+        //   c: "43"
+        // }
+        let bin_a: u64 = 0x082a120346;
+        let bin_b: u64 = 0x6f6f182b;
+        let bin_a: Vec<_> = bin_a
+            .to_be_bytes()
+            .into_iter()
+            .skip_while(|b| b == &0)
+            .collect();
+        let bin_b: Vec<_> = bin_b
+            .to_be_bytes()
+            .into_iter()
+            .skip_while(|b| b == &0)
+            .collect();
+        let bytes = [bin_a, bin_b].concat();
+        let msg = deserialize(&bytes);
+        assert_eq!(WireType::Varint(42), *msg.get(&1).unwrap());
+        assert_eq!(WireType::Len("Foo".to_string()), *msg.get(&2).unwrap());
+        assert_eq!(WireType::Varint(43), *msg.get(&3).unwrap());
+    }
 }
