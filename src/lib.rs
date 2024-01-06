@@ -4,6 +4,7 @@ const CONTINUE_MASK: u8 = 0b1000_0000;
 const DROP_CONINUE_BIT: u8 = 0b0111_1111;
 const WIRE_TYPE_MASK: u8 = 0b0000_0111;
 const FIELD_NUM_MASK: u8 = 0b0111;
+const U64_MAX_LEN: usize = 16;
 
 pub trait Proto {
     fn serialize(&self) -> &[u8];
@@ -21,8 +22,27 @@ enum WireType {
     Len(String),
 }
 
-fn deserialize(bin: &[u8]) -> HashMap<u8, WireType> {
-    let bin: Vec<u8> = bin.iter().skip_while(|b| **b == 0u8).map(|n| *n).collect();
+fn deserialize(hex: &str) -> HashMap<u8, WireType> {
+    let hex_values = hex
+        .chars()
+        .collect::<Vec<_>>()
+        .as_slice()
+        .chunks(U64_MAX_LEN)
+        .map(|hex| {
+            u64::from_str_radix(&hex.into_iter().collect::<String>(), 16)
+                .expect("hex conversion failed")
+        })
+        .collect::<Vec<_>>();
+    let bin: Vec<u8> = hex_values
+        .iter()
+        .flat_map(|v| {
+            v.to_be_bytes()
+                .iter()
+                .skip_while(|b| **b == 0u8)
+                .map(|n| *n)
+                .collect::<Vec<u8>>()
+        })
+        .collect();
     let mut msg = HashMap::new();
     let mut rest = &bin[..];
     loop {
@@ -106,27 +126,42 @@ mod test {
     #[test]
     fn basic_bin_to_msg() {
         // { a: 150 }
-        let bin: u64 = 0x089601;
-        let msg = deserialize(&bin.to_be_bytes());
+        let hex = "089601";
+        let msg = deserialize(hex);
         assert_eq!(WireType::Varint(150), *msg.get(&1).unwrap());
     }
 
     #[test]
     fn number_more_bytes() {
         // { a: 123456789123456 }
-        let bin: u64 = 0x0880a3beb088891c;
-        let msg = deserialize(&bin.to_be_bytes());
+        let hex = "0880a3beb088891c";
+        let msg = deserialize(hex);
         assert_eq!(WireType::Varint(123456789123456), *msg.get(&1).unwrap());
     }
 
     #[test]
-    fn map_two_varint_fields() {
+    fn large_varint() {
+        // {
+        //   a: 18446744073709551615 (u64::MAX)
+        // }
+        //
+        // Generated with
+        // - `echo 1: 18446744073709551615 > msg.txt`
+        // - `protoc -s msg.txt > msg.bin`
+        // - `xxd msg.bin`
+        let hex = "08ffffffffffffffffff01";
+        let msg = deserialize(hex);
+        assert_eq!(WireType::Varint(u64::MAX), *msg.get(&1).unwrap());
+    }
+
+    #[test]
+    fn two_varint_fields() {
         // {
         //   a: 42,
         //   b: 43
         // }
-        let bin: u64 = 0x082a102b;
-        let msg = deserialize(&bin.to_be_bytes());
+        let hex = "082a102b";
+        let msg = deserialize(hex);
         assert_eq!(WireType::Varint(42), *msg.get(&1).unwrap());
         assert_eq!(WireType::Varint(43), *msg.get(&2).unwrap());
     }
@@ -134,8 +169,8 @@ mod test {
     #[test]
     fn single_len_field() {
         // { a: "Foo" }
-        let bin: u64 = 0x0a03466f6f;
-        let msg = deserialize(&bin.to_be_bytes());
+        let hex = "0a03466f6f";
+        let msg = deserialize(hex);
         assert_eq!(WireType::Len("Foo".to_string()), *msg.get(&1).unwrap());
     }
 
@@ -143,31 +178,19 @@ mod test {
     #[should_panic]
     fn fails_for_unknown_type() {
         // { a: 150 } (float)
-        let bin: u64 = 0x0d00001643;
-        deserialize(&bin.to_be_bytes());
+        let hex = "0d00001643";
+        deserialize(hex);
     }
 
     #[test]
     fn mixed_fields() {
         // {
-        //   a: "42",
+        //   a: 42,
         //   b: "Foo",
-        //   c: "43"
+        //   c: 43
         // }
-        let bin_a: u64 = 0x082a120346;
-        let bin_b: u64 = 0x6f6f182b;
-        let bin_a: Vec<_> = bin_a
-            .to_be_bytes()
-            .into_iter()
-            .skip_while(|b| b == &0)
-            .collect();
-        let bin_b: Vec<_> = bin_b
-            .to_be_bytes()
-            .into_iter()
-            .skip_while(|b| b == &0)
-            .collect();
-        let bytes = [bin_a, bin_b].concat();
-        let msg = deserialize(&bytes);
+        let hex = "082a1203466f6f182b";
+        let msg = deserialize(hex);
         assert_eq!(WireType::Varint(42), *msg.get(&1).unwrap());
         assert_eq!(WireType::Len("Foo".to_string()), *msg.get(&2).unwrap());
         assert_eq!(WireType::Varint(43), *msg.get(&3).unwrap());
