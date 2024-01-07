@@ -1,8 +1,4 @@
-use std::collections::HashMap;
-
-use crate::{
-    WireType, CONTINUE_MASK, DROP_CONINUE_BIT, FIELD_NUM_MASK, U64_MAX_LEN, WIRE_TYPE_MASK,
-};
+use crate::{StripLeading, WireType};
 
 pub trait Proto {
     fn proto_msg(&self) -> Vec<u8>;
@@ -45,20 +41,6 @@ impl WireFormat for String {
     fn serialize(&self, field: u8) -> Vec<u8> {
         let wire_type = WireType::Len(self.to_string());
         wire_type.serialize(field)
-    }
-}
-
-trait StripLeading<I, T> {
-    fn strip_leading(self, strip: T) -> Vec<T>;
-}
-
-impl<I, T> StripLeading<I, T> for I
-where
-    I: IntoIterator<Item = T>,
-    T: std::cmp::Eq,
-{
-    fn strip_leading(self, strip: T) -> Vec<T> {
-        self.into_iter().skip_while(|t| t == &strip).collect()
     }
 }
 
@@ -116,7 +98,6 @@ impl WireFormat for WireType {
 
 #[cfg(test)]
 mod test {
-    use std::io::Write;
 
     use super::*;
 

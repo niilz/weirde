@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
 use crate::{
-    WireType, CONTINUE_MASK, DROP_CONINUE_BIT, FIELD_NUM_MASK, U64_MAX_LEN, WIRE_TYPE_MASK,
+    StripLeading, WireType, CONTINUE_MASK, DROP_CONINUE_BIT, FIELD_NUM_MASK, U64_MAX_LEN,
+    WIRE_TYPE_MASK,
 };
 
 fn deserialize(hex: &str) -> HashMap<u8, WireType> {
@@ -17,13 +18,7 @@ fn deserialize(hex: &str) -> HashMap<u8, WireType> {
         .collect::<Vec<_>>();
     let bin: Vec<u8> = hex_values
         .iter()
-        .flat_map(|v| {
-            v.to_be_bytes()
-                .iter()
-                .skip_while(|b| **b == 0u8)
-                .map(|n| *n)
-                .collect::<Vec<u8>>()
-        })
+        .flat_map(|v| v.to_be_bytes().strip_leading(0u8))
         .collect();
     let mut msg = HashMap::new();
     let mut rest = &bin[..];
