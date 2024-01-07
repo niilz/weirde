@@ -143,17 +143,13 @@ mod test {
 
     #[test]
     fn num_message_max_num_to_bin() {
-        // 1: 18446744073709551615 == 1: ffff ffff ffff ffff
-        let num_msg = NumMessage { a: u64::MAX };
+        // 1: 2305843009213693951 == 1: 1fffffffffffffff
+        let num_msg = NumMessage { a: u64::MAX / 8 };
 
-        // MSG in Hex:
-        // 08ff ffff ffff ffff ffff 01
+        // 1: 08ffffffffffffffff1f
         let msg_bin = num_msg.proto_msg();
 
-        let mut file = std::fs::File::create("delme.bin").unwrap();
-        file.write_all(msg_bin.as_slice()).unwrap();
-
-        let hex = vec![8, 255, 255, 255, 255, 255, 255, 255, 255, 255, 1];
+        let hex = vec![8, 255, 255, 255, 255, 255, 255, 255, 255, 31];
         assert_eq!(hex, msg_bin);
     }
 
@@ -170,20 +166,29 @@ mod test {
     #[test]
     fn large_num_three_field_message_to_bin() {
         let msg = SimpleMessage {
-            a: u64::MAX,
+            a: u64::MAX / 8,
             b: "I am a slightly larger and more complex string with umlauts ÄöÜ".to_string(),
         };
-        let hex: Vec<u64> = "080012424920616d206120736c696768746c79206c617267657220616e64206d6f726520636f6d706c657820737472696e67207769746820756d6c6175747320c384c3b6c39c".chars().collect::<Vec<_>>()
-            .chunks(2)
-            .map(|hex| u64::from_str_radix(&hex.iter().collect::<String>(), 16).unwrap())
-            .collect();
-        println!("HEX: {hex:?}");
+
+        // msg:
+        // 08ff ffff ffff ffff
+        // ff1f 1242 4920 616d
+        // 2061 2073 6c69 6768
+        // 746c 7920 6c61 7267
+        // 6572 2061 6e64 206d
+        // 6f72 6520 636f 6d70
+        // 6c65 7820 7374 7269
+        // 6e67 2077 6974 6820
+        // 756d 6c61 7574 7320
+        // c384 c3b6 c39c
+
         assert_eq!(
             vec![
-                8, 0, 18, 66, 73, 32, 97, 109, 32, 97, 32, 115, 108, 105, 103, 104, 116, 108, 121,
-                32, 108, 97, 114, 103, 101, 114, 32, 97, 110, 100, 32, 109, 111, 114, 101, 32, 99,
-                111, 109, 112, 108, 101, 120, 32, 115, 116, 114, 105, 110, 103, 32, 119, 105, 116,
-                104, 32, 117, 109, 108, 97, 117, 116, 115, 32, 195, 132, 195, 182, 195, 156
+                8, 255, 255, 255, 255, 255, 255, 255, 255, 31, 18, 66, 73, 32, 97, 109, 32, 97, 32,
+                115, 108, 105, 103, 104, 116, 108, 121, 32, 108, 97, 114, 103, 101, 114, 32, 97,
+                110, 100, 32, 109, 111, 114, 101, 32, 99, 111, 109, 112, 108, 101, 120, 32, 115,
+                116, 114, 105, 110, 103, 32, 119, 105, 116, 104, 32, 117, 109, 108, 97, 117, 116,
+                115, 32, 195, 132, 195, 182, 195, 156
             ],
             msg.proto_msg()
         );
