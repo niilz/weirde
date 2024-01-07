@@ -38,11 +38,6 @@ impl WireFormat for String {
         wire_type.serialize(field)
     }
 }
-//const CONTINUE_MASK: u8 = 0b1000_0000;
-//const DROP_CONINUE_BIT: u8 = 0b0111_1111;
-//const WIRE_TYPE_MASK: u8 = 0b0000_0111;
-//const FIELD_NUM_MASK: u8 = 0b0111;
-//const U64_MAX_LEN: usize = 16;
 
 trait StripLeading<I, T> {
     fn strip_leading(self, strip: T) -> Vec<T>;
@@ -110,7 +105,18 @@ mod test {
     fn basic_len_to_bin() {
         let ser = "Foo".to_string().serialize(1);
         // 0a03466f6f
-        let hex: u64 = 0x0a03466f6f;
         assert_eq!(vec![10, 3, 70, 111, 111], ser);
+    }
+
+    #[test]
+    fn simple_message_to_bin() {
+        let msg = SimpleMessage {
+            a: 1,
+            b: "Foo".to_string(),
+        };
+        // 082a1203466f6f
+        let hex: u64 = 0x082a1203466f6f;
+        println!("{:?}", hex.to_le_bytes());
+        assert_eq!(vec![8, 1, 18, 3, 70, 111, 111], msg.proto_msg());
     }
 }
