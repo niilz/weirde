@@ -29,9 +29,9 @@ fn deserialize(hex: &str) -> HashMap<u8, WireType> {
     let mut rest = &bin[..];
     loop {
         let key = &rest[0];
-        eprintln!("key: {key}");
+        println!("key: {key}");
         let (next, field, wire_type) = map_to_wire_type(*key, &rest[1..]);
-        eprintln!("field: {field}, next: {next:?}, wire_type: {wire_type:?})");
+        println!("field: {field}, next: {next:?}, wire_type: {wire_type:?})");
         msg.insert(field, wire_type);
         rest = next;
         if rest == &[] {
