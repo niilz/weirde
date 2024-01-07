@@ -102,6 +102,14 @@ mod test {
     }
 
     #[test]
+    fn large_num_to_bin() {
+        let ser = u64::MAX.serialize(1);
+        // 082a
+        // 08ff ffff ffff ffff ffff 01
+        assert_eq!(vec![8, 255, 255, 255, 255, 255, 255, 255, 255], ser);
+    }
+
+    #[test]
     fn basic_len_to_bin() {
         let ser = "Foo".to_string().serialize(1);
         // 0a03466f6f
@@ -115,8 +123,6 @@ mod test {
             b: "Foo".to_string(),
         };
         // 082a1203466f6f
-        let hex: u64 = 0x082a1203466f6f;
-        println!("{:?}", hex.to_le_bytes());
         assert_eq!(vec![8, 1, 18, 3, 70, 111, 111], msg.proto_msg());
     }
 }
