@@ -44,32 +44,53 @@ impl WireFormat for String {
 //const FIELD_NUM_MASK: u8 = 0b0111;
 //const U64_MAX_LEN: usize = 16;
 
+trait StripLeading<I, T> {
+    fn strip_leading(self, strip: T) -> Vec<T>;
+}
+
+impl<I, T> StripLeading<I, T> for I
+where
+    I: IntoIterator<Item = T>,
+    T: std::cmp::Eq,
+{
+    fn strip_leading(self, strip: T) -> Vec<T> {
+        self.into_iter().skip_while(|t| t == &strip).collect()
+    }
+}
+
 impl WireFormat for WireType {
     fn serialize(&self, field: u8) -> Vec<u8> {
-        let key = format!("0{:04b}000", field);
-        let key = u64::from_str_radix(&key, 2).expect("key binary-conversion failed");
-        let key = key.to_be_bytes().to_vec();
-        let value = match self {
+        let (key, value) = match self {
             WireType::Varint(v) => {
                 // 0 => no continuation bit
                 //  xxxx => the field number
                 //      000 => wire_type: 0 == VARINT
+                let key = format!("0{:04b}000", field);
+                let key =
+                    u64::from_str_radix(&key, 2).expect("varint-key binary-conversion failed");
+                let key = key.to_be_bytes().to_vec();
                 let value = format!("{v:b}");
                 let value = u64::from_str_radix(&value, 2).expect("value binary-conversion failed");
                 println!("{v}");
-                value.to_be_bytes().to_vec()
+                let value = value.to_be_bytes().to_vec();
+                (key, value)
             }
-            WireType::Len(s) => s.as_bytes().to_vec(),
+            WireType::Len(s) => {
+                let key = format!("0{:04b}010", field);
+                let key = u64::from_str_radix(&key, 2).expect("len-key binary-conversion failed");
+                let key = key.to_be_bytes().to_vec();
+                let value = s.as_bytes().to_vec();
+                let len = value.len();
+                let len_stripped = u64::from_str_radix(&format!("{:x}", len), 16)
+                    .expect("len not converted to hex")
+                    .to_be_bytes()
+                    .strip_leading(0u8);
+                (key, [len_stripped, value].concat())
+            }
         };
         [key, value]
-            .iter()
-            .flat_map(|bytes| {
-                bytes
-                    .iter()
-                    .skip_while(|b| *b == &0u8)
-                    .map(|n| *n)
-                    .collect::<Vec<_>>()
-            })
+            .into_iter()
+            .flat_map(|bytes| bytes.strip_leading(0u8))
             .collect()
     }
 }
@@ -83,5 +104,13 @@ mod test {
         let ser = 42.serialize(1);
         // 082a
         assert_eq!(vec![8, 42], ser);
+    }
+
+    #[test]
+    fn basic_len_to_bin() {
+        let ser = "Foo".to_string().serialize(1);
+        // 0a03466f6f
+        let hex: u64 = 0x0a03466f6f;
+        assert_eq!(vec![10, 3, 70, 111, 111], ser);
     }
 }
